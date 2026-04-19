@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Aplikasi web edukasi untuk memahami algoritma kriptografi RSA — enkripsi, dekripsi, dan visualisasi langkah-langkah matematis." />
+  <title>Website RSA Cipher</title>
+  <link rel="stylesheet" href="css/style.css?v=3" />
+</head>
+<body>
+
+  <!-- ===== HEADER ===== -->
+  <header class="site-header" role="banner">
+    <div class="container">
+      <h1 class="site-title">Website RSA Cipher</h1>
+      <p class="site-description">
+        RSA (<em>Rivest–Shamir–Adleman</em>) adalah algoritma kriptografi asimetris yang menggunakan
+        sepasang kunci — <strong>kunci publik</strong> untuk mengenkripsi pesan dan
+        <strong>kunci privat</strong> untuk mendekripsinya. Keamanan RSA bergantung pada sulitnya
+        memfaktorkan hasil perkalian dua bilangan prima besar. Website ini membantu Anda memahami
+        cara kerja RSA secara interaktif dengan menampilkan setiap langkah perhitungan secara detail.
+      </p>
+    </div>
+  </header>
+
+  <!-- ===== NOTIFIKASI / ERROR ===== -->
+  <div
+    id="notification"
+    class="notification hidden"
+    role="alert"
+    aria-live="polite"
+    aria-atomic="true"
+  ></div>
+
+  <!-- ===== INDIKATOR PROSES ===== -->
+  <div
+    id="processing-indicator"
+    class="processing-indicator hidden"
+    role="status"
+    aria-live="polite"
+    aria-label="Sedang memproses"
+  >
+    <span class="spinner" aria-hidden="true"></span>
+    <span>Sedang memproses…</span>
+  </div>
+
+  <!-- ===== NAVIGASI ===== -->
+  <nav class="tab-nav" role="navigation" aria-label="Navigasi utama">
+    <div class="container">
+      <ul class="tab-list" role="tablist">
+        <li role="presentation">
+          <button
+            class="tab-btn active"
+            id="tab-key"
+            role="tab"
+            aria-selected="true"
+            aria-controls="section-key"
+            data-target="section-key"
+          >Pembuatan Kunci</button>
+        </li>
+        <li role="presentation">
+          <button
+            class="tab-btn"
+            id="tab-encrypt"
+            role="tab"
+            aria-selected="false"
+            aria-controls="section-encrypt"
+            data-target="section-encrypt"
+          >Enkripsi</button>
+        </li>
+        <li role="presentation">
+          <button
+            class="tab-btn"
+            id="tab-decrypt"
+            role="tab"
+            aria-selected="false"
+            aria-controls="section-decrypt"
+            data-target="section-decrypt"
+          >Dekripsi</button>
+        </li>
+        <li role="presentation">
+          <button
+            class="tab-btn"
+            id="tab-history"
+            role="tab"
+            aria-selected="false"
+            aria-controls="section-history"
+            data-target="section-history"
+          >Riwayat</button>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ===== KONTEN UTAMA ===== -->
+  <main class="main-content" id="main-content">
+    <div class="container">
+
+      <!-- ===== SEKSI: PEMBUATAN KUNCI ===== -->
+      <section
+        id="section-key"
+        class="section active"
+        role="tabpanel"
+        aria-labelledby="tab-key"
+      >
+        <h2 class="section-title">Pembuatan Kunci RSA</h2>
+        <p class="section-intro">
+          Buat pasangan kunci RSA secara otomatis, atau masukkan nilai kunci Anda sendiri untuk bereksperimen.
+        </p>
+
+        <!-- Buat kunci otomatis -->
+        <div class="card">
+          <h3 class="card-title">Buat Kunci Otomatis</h3>
+          <button id="btn-generate-key" class="btn btn-primary" type="button">
+            Buat Kunci
+          </button>
+        </div>
+
+        <!-- Input kunci manual -->
+        <div class="card">
+          <h3 class="card-title">Masukkan Kunci Manual</h3>
+          <div class="form-group">
+            <label for="input-n" class="form-label">
+              Modulus <code>n</code>
+              <span class="form-hint">(bilangan bulat positif, hasil p × q)</span>
+            </label>
+            <input
+              type="number"
+              id="input-n"
+              class="form-input"
+              placeholder="Contoh: 3233"
+              min="1"
+              aria-describedby="hint-n"
+            />
+            <span id="hint-n" class="sr-only">Masukkan nilai modulus n, yaitu hasil perkalian dua bilangan prima p dan q.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="input-e" class="form-label">
+              Eksponen publik <code>e</code>
+              <span class="form-hint">(bilangan bulat positif, gcd(e, φ(n)) = 1)</span>
+            </label>
+            <input
+              type="number"
+              id="input-e"
+              class="form-input"
+              placeholder="Contoh: 17"
+              min="1"
+              aria-describedby="hint-e"
+            />
+            <span id="hint-e" class="sr-only">Masukkan nilai eksponen publik e yang relatif prima terhadap φ(n).</span>
+          </div>
+
+          <div class="form-group">
+            <label for="input-d" class="form-label">
+              Eksponen privat <code>d</code>
+              <span class="form-hint">(bilangan bulat positif, (e × d) mod φ(n) = 1)</span>
+            </label>
+            <input
+              type="number"
+              id="input-d"
+              class="form-input"
+              placeholder="Contoh: 2753"
+              min="1"
+              aria-describedby="hint-d"
+            />
+            <span id="hint-d" class="sr-only">Masukkan nilai eksponen privat d, invers modular dari e terhadap φ(n).</span>
+          </div>
+
+          <button id="btn-manual-key" class="btn btn-secondary" type="button">
+            Gunakan Kunci Manual
+          </button>
+        </div>
+
+        <!-- Tampilan nilai kunci aktif -->
+        <div class="card" id="key-display" aria-live="polite" aria-label="Nilai kunci aktif">
+          <h3 class="card-title">Kunci Aktif</h3>
+          <p class="placeholder-text">Belum ada kunci yang dibuat atau dimasukkan.</p>
+        </div>
+
+        <!-- Langkah-langkah pembuatan kunci -->
+        <div class="card">
+          <h3 class="card-title">Langkah-langkah Pembuatan Kunci</h3>
+          <div id="key-steps" aria-live="polite" aria-label="Langkah-langkah pembuatan kunci">
+            <p class="placeholder-text">Langkah-langkah akan ditampilkan setelah kunci dibuat.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SEKSI: ENKRIPSI ===== -->
+      <section
+        id="section-encrypt"
+        class="section hidden"
+        role="tabpanel"
+        aria-labelledby="tab-encrypt"
+      >
+        <h2 class="section-title">Enkripsi Pesan</h2>
+        <p class="section-intro">
+          Masukkan teks yang ingin dienkripsi. Setiap karakter akan dienkripsi menggunakan rumus
+          <strong>C = M<sup>e</sup> mod n</strong>.
+        </p>
+
+        <div class="card">
+          <div class="form-group">
+            <label for="input-plaintext" class="form-label">
+              Teks asli (plaintext)
+            </label>
+            <textarea
+              id="input-plaintext"
+              class="form-textarea"
+              rows="4"
+              placeholder="Masukkan teks yang akan dienkripsi…"
+              aria-describedby="hint-plaintext"
+            ></textarea>
+            <span id="hint-plaintext" class="form-hint">
+              Setiap karakter akan dikonversi ke nilai ASCII lalu dienkripsi secara terpisah.
+            </span>
+          </div>
+
+          <button id="btn-encrypt" class="btn btn-primary" type="button">
+            Enkripsi
+          </button>
+        </div>
+
+        <!-- Hasil ciphertext -->
+        <div class="card">
+          <h3 class="card-title">Hasil Ciphertext</h3>
+          <div
+            id="result-ciphertext"
+            class="result-area"
+            aria-live="polite"
+            aria-label="Hasil enkripsi"
+          >
+            <p class="placeholder-text">Hasil enkripsi akan ditampilkan di sini.</p>
+          </div>
+        </div>
+
+        <!-- Langkah-langkah enkripsi -->
+        <div class="card">
+          <h3 class="card-title">Langkah-langkah Enkripsi</h3>
+          <div
+            id="encrypt-steps"
+            aria-live="polite"
+            aria-label="Langkah-langkah enkripsi"
+          >
+            <p class="placeholder-text">Langkah-langkah akan ditampilkan setelah enkripsi dijalankan.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SEKSI: DEKRIPSI ===== -->
+      <section
+        id="section-decrypt"
+        class="section hidden"
+        role="tabpanel"
+        aria-labelledby="tab-decrypt"
+      >
+        <h2 class="section-title">Dekripsi Pesan</h2>
+        <p class="section-intro">
+          Masukkan ciphertext berupa angka desimal yang dipisahkan spasi. Setiap angka akan didekripsi
+          menggunakan rumus <strong>M = C<sup>d</sup> mod n</strong>.
+        </p>
+
+        <div class="card">
+          <div class="form-group">
+            <label for="input-ciphertext" class="form-label">
+              Ciphertext (angka dipisahkan spasi)
+            </label>
+            <textarea
+              id="input-ciphertext"
+              class="form-textarea"
+              rows="4"
+              placeholder="Contoh: 2790 2345 1234 1234 2019"
+              aria-describedby="hint-ciphertext"
+            ></textarea>
+            <span id="hint-ciphertext" class="form-hint">
+              Masukkan angka-angka ciphertext yang dipisahkan oleh spasi.
+            </span>
+          </div>
+
+          <button id="btn-decrypt" class="btn btn-primary" type="button">
+            Dekripsi
+          </button>
+        </div>
+
+        <!-- Hasil plaintext -->
+        <div class="card">
+          <h3 class="card-title">Hasil Plaintext</h3>
+          <div
+            id="result-plaintext"
+            class="result-area"
+            aria-live="polite"
+            aria-label="Hasil dekripsi"
+          >
+            <p class="placeholder-text">Hasil dekripsi akan ditampilkan di sini.</p>
+          </div>
+        </div>
+
+        <!-- Langkah-langkah dekripsi -->
+        <div class="card">
+          <h3 class="card-title">Langkah-langkah Dekripsi</h3>
+          <div
+            id="decrypt-steps"
+            aria-live="polite"
+            aria-label="Langkah-langkah dekripsi"
+          >
+            <p class="placeholder-text">Langkah-langkah akan ditampilkan setelah dekripsi dijalankan.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== SEKSI: RIWAYAT ===== -->
+      <section
+        id="section-history"
+        class="section hidden"
+        role="tabpanel"
+        aria-labelledby="tab-history"
+      >
+        <h2 class="section-title">Riwayat Operasi</h2>
+        <p class="section-intro">
+          Daftar semua operasi enkripsi dan dekripsi yang telah dilakukan selama sesi ini,
+          diurutkan dari yang terbaru.
+        </p>
+
+        <div class="card">
+          <div
+            id="history-list"
+            aria-live="polite"
+            aria-label="Daftar riwayat operasi"
+          >
+            <p class="placeholder-text">Belum ada riwayat operasi.</p>
+          </div>
+
+          <div class="card-actions">
+            <button id="btn-clear-history" class="btn btn-danger" type="button">
+              Hapus Riwayat
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div><!-- /.container -->
+  </main>
+
+  <!-- ===== FOOTER ===== -->
+  <footer class="site-footer" role="contentinfo">
+    <div class="container">
+      <p>Website RSA Cipher — Alat edukasi kriptografi berbasis browser.</p>
+    </div>
+  </footer>
+
+  <!-- ===== JAVASCRIPT ===== -->
+  <script type="module" src="js/app.js?v=2"></script>
+
+</body>
+</html>

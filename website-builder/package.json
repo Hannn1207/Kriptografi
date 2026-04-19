@@ -1,0 +1,14 @@
+{
+  "name": "website-builder-rsa-cipher",
+  "version": "1.0.0",
+  "description": "Website RSA Cipher - Aplikasi web edukasi algoritma RSA",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "vitest": "^2.0.0",
+    "fast-check": "^3.0.0"
+  }
+}
