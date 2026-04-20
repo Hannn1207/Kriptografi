@@ -408,27 +408,28 @@
           </p>
 
           <div class="form-group">
-            <label for="sig-file-input" class="form-label">Upload File (teks)</label>
+            <label for="sig-file-input" class="form-label">Upload File</label>
             <input
               type="file"
               id="sig-file-input"
               class="form-input"
-              accept=".txt,.md,.csv,.json,.html,.js,.py"
               aria-describedby="hint-sig-file"
             />
             <span id="hint-sig-file" class="form-hint">
-              Upload file teks. Isi file akan dibaca dan ditampilkan di bawah.
+              Mendukung semua jenis file: .txt, .pdf, .docx, .png, .jpg, dll.
             </span>
           </div>
 
-          <!-- Isi file -->
+          <!-- Info file -->
           <div id="sig-file-content-card" class="hidden">
-            <div class="form-group">
-              <label class="form-label">Isi File</label>
+            <div class="sig-file-info" id="sig-file-info"></div>
+            <!-- Preview isi (hanya untuk file teks) -->
+            <div id="sig-text-preview-wrap" class="hidden form-group" style="margin-top: 0.75rem;">
+              <label class="form-label">Isi File (preview)</label>
               <textarea
                 id="sig-file-content"
                 class="form-textarea"
-                rows="6"
+                rows="5"
                 readonly
                 style="font-family: var(--font-mono); font-size: 0.8rem;"
               ></textarea>
@@ -480,8 +481,9 @@
               type="file"
               id="verify-file-input"
               class="form-input"
-              accept=".txt,.md,.csv,.json,.html,.js,.py"
             />
+            <span class="form-hint">Upload file yang sama dengan file yang ditandatangani. Mendukung semua jenis file.</span>
+            <div id="verify-file-info" class="sig-file-info hidden" style="margin-top: 0.5rem;"></div>
           </div>
 
           <div class="form-group">

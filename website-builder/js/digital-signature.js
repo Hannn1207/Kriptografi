@@ -1,65 +1,115 @@
 /**
  * Digital Signature - Tanda Tangan Digital menggunakan RSA + SHA-256
  * Menggunakan Web Crypto API untuk hashing SHA-256
+ * Mendukung semua jenis file (teks, PDF, DOCX, gambar, dll.)
  */
 
 import { modPow } from './rsa-math.js';
 
 /**
- * Hitung SHA-256 dari string, kembalikan hex string
- * @param {string} text
+ * Hitung SHA-256 dari ArrayBuffer, kembalikan hex string
+ * @param {ArrayBuffer} buffer
  * @returns {Promise<string>} hex string
  */
-async function sha256Hex(text) {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+async function sha256FromBuffer(buffer) {
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
- * Konversi hex string ke angka desimal (ambil 8 karakter pertama agar muat di RSA edukasi)
+ * Baca file sebagai ArrayBuffer
+ * @param {File} file
+ * @returns {Promise<ArrayBuffer>}
+ */
+function readFileAsBuffer(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Gagal membaca file'));
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+/**
+ * Baca file sebagai teks (hanya untuk file teks)
+ * @param {File} file
+ * @returns {Promise<string>}
+ */
+function readFileAsText(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Gagal membaca file'));
+    reader.readAsText(file);
+  });
+}
+
+/**
+ * Cek apakah file adalah file teks yang bisa ditampilkan
+ * @param {File} file
+ * @returns {boolean}
+ */
+function isTextFile(file) {
+  const textTypes = ['text/', 'application/json', 'application/javascript', 'application/xml'];
+  const textExtensions = ['.txt', '.md', '.csv', '.json', '.js', '.py', '.html', '.css', '.xml', '.log'];
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  return textTypes.some(t => file.type.startsWith(t)) || textExtensions.includes(ext);
+}
+
+/**
+ * Format ukuran file
+ * @param {number} bytes
+ * @returns {string}
+ */
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/**
+ * Konversi hex string ke angka desimal (ambil 8 karakter pertama)
  * @param {string} hex
  * @returns {number}
  */
 function hexToDecimalTruncated(hex) {
-  // Ambil 8 karakter hex pertama = 32-bit number, cukup untuk RSA edukasi
   const truncated = hex.substring(0, 8);
   return parseInt(truncated, 16);
 }
 
 /**
- * Buat tanda tangan digital
+ * Buat tanda tangan digital dari file
  * S = hash^d mod n  (menggunakan kunci privat)
  *
- * @param {string} fileContent - Isi file
+ * @param {File} file
  * @param {{ n: number, d: number }} privateKey
- * @returns {Promise<{ hash: string, hashDecimal: number, signature: number, steps: string[] }>}
+ * @returns {Promise<object>}
  */
-async function signDocument(fileContent, privateKey) {
+async function signFile(file, privateKey) {
   const { n, d } = privateKey;
 
-  // Step 1: Hitung hash SHA-256
-  const hashHex = await sha256Hex(fileContent);
+  // Baca file sebagai buffer (mendukung semua jenis file)
+  const buffer = await readFileAsBuffer(file);
 
-  // Step 2: Konversi ke desimal (dipotong agar muat di RSA edukasi)
+  // Hitung SHA-256 dari buffer
+  const hashHex = await sha256FromBuffer(buffer);
+
+  // Konversi ke desimal dan mod n
   const hashDecimal = hexToDecimalTruncated(hashHex);
-
-  // Pastikan hash < n (syarat RSA)
   const hashMod = hashDecimal % n;
 
-  // Step 3: Tanda tangani: S = hash^d mod n
+  // Tanda tangani: S = hash^d mod n
   const signature = modPow(hashMod, d, n);
 
   const steps = [
-    `<div class="step-formula">SHA-256("${fileContent.substring(0, 30)}${fileContent.length > 30 ? '...' : ''}")</div>
+    `<div class="step-formula">SHA-256("${file.name}", ${formatFileSize(file.size)})</div>
      <div class="step-substituted">= ${hashHex}</div>
-     <div class="step-description">Hash SHA-256 dari isi file (256-bit, ditampilkan dalam heksadesimal)</div>`,
+     <div class="step-description">Hash SHA-256 dihitung dari seluruh byte file (mendukung semua format file)</div>`,
 
-    `<div class="step-formula">Hash (desimal, 8 hex pertama) = 0x${hashHex.substring(0, 8)}</div>
+    `<div class="step-formula">Hash (8 hex pertama) = 0x${hashHex.substring(0, 8)}</div>
      <div class="step-substituted">= ${hashDecimal}</div>
-     <div class="step-description">Konversi 8 karakter hex pertama ke desimal untuk digunakan dalam RSA edukasi</div>`,
+     <div class="step-description">Ambil 8 karakter hex pertama dan konversi ke desimal untuk RSA edukasi</div>`,
 
     `<div class="step-formula">Hash mod n = ${hashDecimal} mod ${n}</div>
      <div class="step-substituted">= ${hashMod}</div>
@@ -76,29 +126,31 @@ async function signDocument(fileContent, privateKey) {
 /**
  * Verifikasi tanda tangan digital
  * hash_recovered = S^e mod n  (menggunakan kunci publik)
- * Bandingkan dengan hash file yang diupload
  *
- * @param {string} fileContent - Isi file yang akan diverifikasi
- * @param {number} signature - Tanda tangan yang diterima
+ * @param {File} file
+ * @param {number} signature
  * @param {{ n: number, e: number }} publicKey
- * @returns {Promise<{ valid: boolean, hashFile: string, hashRecovered: number, steps: string[] }>}
+ * @returns {Promise<object>}
  */
-async function verifySignature(fileContent, signature, publicKey) {
+async function verifySignature(file, signature, publicKey) {
   const { n, e } = publicKey;
 
-  // Step 1: Hitung hash file yang diupload
-  const hashHex = await sha256Hex(fileContent);
+  // Baca file sebagai buffer
+  const buffer = await readFileAsBuffer(file);
+
+  // Hitung hash file
+  const hashHex = await sha256FromBuffer(buffer);
   const hashDecimal = hexToDecimalTruncated(hashHex);
   const hashMod = hashDecimal % n;
 
-  // Step 2: Pulihkan hash dari tanda tangan: hash_recovered = S^e mod n
+  // Pulihkan hash dari tanda tangan: hash_recovered = S^e mod n
   const hashRecovered = modPow(signature, e, n);
 
-  // Step 3: Bandingkan
+  // Bandingkan
   const valid = hashMod === hashRecovered;
 
   const steps = [
-    `<div class="step-formula">SHA-256(file yang diverifikasi)</div>
+    `<div class="step-formula">SHA-256("${file.name}", ${formatFileSize(file.size)})</div>
      <div class="step-substituted">= ${hashHex}</div>
      <div class="step-description">Hitung ulang hash SHA-256 dari file yang diterima</div>`,
 
@@ -110,7 +162,7 @@ async function verifySignature(fileContent, signature, publicKey) {
      <div class="step-substituted">= ${signature}^${e} mod ${n} = ${hashRecovered}</div>
      <div class="step-description">Pulihkan hash dari tanda tangan menggunakan kunci publik e</div>`,
 
-    `<div class="step-formula">Perbandingan: hash_file == hash_recovered?</div>
+    `<div class="step-formula">hash_file == hash_recovered ?</div>
      <div class="step-substituted">${hashMod} == ${hashRecovered} → ${valid ? '✅ SAMA' : '❌ BERBEDA'}</div>
      <div class="step-description">${valid
        ? 'Tanda tangan VALID — file tidak diubah dan berasal dari pengirim yang benar'
@@ -120,4 +172,4 @@ async function verifySignature(fileContent, signature, publicKey) {
   return { valid, hashHex, hashDecimal, hashMod, hashRecovered, steps };
 }
 
-export { signDocument, verifySignature, sha256Hex };
+export { signFile, verifySignature, readFileAsText, isTextFile, formatFileSize };

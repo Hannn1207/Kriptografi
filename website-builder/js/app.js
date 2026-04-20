@@ -7,7 +7,7 @@ import { encrypt, getLastError as getEncryptLastError, ERR_KEY_TOO_SMALL } from 
 import { parseCiphertext, decrypt, getLastError as getDecryptLastError } from './decryptor.js?v=2';
 import { renderKeyGenerationSteps, renderEncryptionSteps, renderDecryptionSteps } from './step-visualizer.js?v=2';
 import { addEntry, clearAll, renderHistory } from './history-manager.js?v=3';
-import { signDocument, verifySignature } from './digital-signature.js';
+import { signFile, verifySignature, readFileAsText, isTextFile, formatFileSize } from './digital-signature.js';
 
 /**
  * State aplikasi global
@@ -324,22 +324,41 @@ function init() {
 
   // ─── TANDA TANGAN DIGITAL ────────────────────────────────────────────────
 
+  let sigFile = null;
+  let verifyFile = null;
+
   // 7. Upload file untuk ditandatangani
   const sigFileInput = document.getElementById('sig-file-input');
   if (sigFileInput) {
-    sigFileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+    sigFileInput.addEventListener('change', async (e) => {
+      sigFile = e.target.files[0];
+      if (!sigFile) return;
 
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const content = ev.target.result;
-        const contentEl = document.getElementById('sig-file-content');
-        const contentCard = document.getElementById('sig-file-content-card');
-        if (contentEl) contentEl.value = content;
-        if (contentCard) contentCard.classList.remove('hidden');
-      };
-      reader.readAsText(file);
+      const contentCard = document.getElementById('sig-file-content-card');
+      const fileInfoEl = document.getElementById('sig-file-info');
+      const textPreviewWrap = document.getElementById('sig-text-preview-wrap');
+      const contentEl = document.getElementById('sig-file-content');
+
+      if (fileInfoEl) {
+        fileInfoEl.innerHTML = `<div class="sig-file-badge">
+          <span>${getFileIcon(sigFile.name)}</span>
+          <span class="sig-file-name">${sigFile.name}</span>
+          <span class="sig-file-size">${formatFileSize(sigFile.size)}</span>
+          <span class="sig-file-type">${sigFile.type || 'unknown'}</span>
+        </div>`;
+      }
+
+      if (isTextFile(sigFile) && textPreviewWrap && contentEl) {
+        try {
+          const text = await readFileAsText(sigFile);
+          contentEl.value = text;
+          textPreviewWrap.classList.remove('hidden');
+        } catch { textPreviewWrap.classList.add('hidden'); }
+      } else if (textPreviewWrap) {
+        textPreviewWrap.classList.add('hidden');
+      }
+
+      if (contentCard) contentCard.classList.remove('hidden');
     });
   }
 
@@ -351,32 +370,27 @@ function init() {
         showNotification('Harap buat atau masukkan kunci RSA terlebih dahulu di tab Pembuatan Kunci', 'error');
         return;
       }
-
-      const contentEl = document.getElementById('sig-file-content');
-      const fileContent = contentEl ? contentEl.value.trim() : '';
-      if (!fileContent) {
+      if (!sigFile) {
         showNotification('Harap upload file terlebih dahulu', 'error');
         return;
       }
 
       showProcessing();
       try {
-        const result = await signDocument(fileContent, AppState.currentKeyPair.privateKey);
+        const result = await signFile(sigFile, AppState.currentKeyPair.privateKey);
 
-        // Tampilkan hasil
         const hashDisplay = document.getElementById('sig-hash-display');
-        const hashDecimal = document.getElementById('sig-hash-decimal');
+        const hashDecimalEl = document.getElementById('sig-hash-decimal');
         const sigDisplay = document.getElementById('sig-signature-display');
         const signSteps = document.getElementById('sig-sign-steps');
         const resultCard = document.getElementById('sig-result-card');
 
         if (hashDisplay) hashDisplay.textContent = result.hashHex;
-        if (hashDecimal) hashDecimal.textContent = `${result.hashDecimal} → mod n = ${result.hashMod}`;
+        if (hashDecimalEl) hashDecimalEl.textContent = `${result.hashDecimal} → mod n = ${result.hashMod}`;
         if (sigDisplay) sigDisplay.textContent = result.signature;
         if (signSteps) signSteps.innerHTML = result.steps.join('<hr style="border:none;border-top:1px solid #e5e7eb;margin:0.5rem 0">');
         if (resultCard) resultCard.classList.remove('hidden');
 
-        // Isi otomatis field verifikasi
         const verifySigInput = document.getElementById('verify-signature-input');
         if (verifySigInput) verifySigInput.value = result.signature;
 
@@ -391,14 +405,19 @@ function init() {
 
   // 9. Upload file untuk diverifikasi
   const verifyFileInput = document.getElementById('verify-file-input');
-  let verifyFileContent = '';
   if (verifyFileInput) {
     verifyFileInput.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (ev) => { verifyFileContent = ev.target.result; };
-      reader.readAsText(file);
+      verifyFile = e.target.files[0];
+      if (!verifyFile) return;
+      const infoEl = document.getElementById('verify-file-info');
+      if (infoEl) {
+        infoEl.innerHTML = `<div class="sig-file-badge">
+          <span>${getFileIcon(verifyFile.name)}</span>
+          <span class="sig-file-name">${verifyFile.name}</span>
+          <span class="sig-file-size">${formatFileSize(verifyFile.size)}</span>
+        </div>`;
+        infoEl.classList.remove('hidden');
+      }
     });
   }
 
@@ -410,8 +429,7 @@ function init() {
         showNotification('Harap buat atau masukkan kunci RSA terlebih dahulu', 'error');
         return;
       }
-
-      if (!verifyFileContent) {
+      if (!verifyFile) {
         showNotification('Harap upload file yang akan diverifikasi', 'error');
         return;
       }
@@ -425,7 +443,7 @@ function init() {
 
       showProcessing();
       try {
-        const result = await verifySignature(verifyFileContent, signature, AppState.currentKeyPair.publicKey);
+        const result = await verifySignature(verifyFile, signature, AppState.currentKeyPair.publicKey);
 
         const resultDisplay = document.getElementById('verify-result-display');
         const verifySteps = document.getElementById('sig-verify-steps');
@@ -450,6 +468,19 @@ function init() {
       }
     });
   }
+}
+
+// Helper: ikon berdasarkan ekstensi file
+function getFileIcon(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  const icons = {
+    pdf: '📄', docx: '📝', doc: '📝', xlsx: '📊', xls: '📊',
+    pptx: '📊', ppt: '📊', txt: '📃', md: '📃', csv: '📊',
+    png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', svg: '🖼️',
+    mp4: '🎬', mp3: '🎵', zip: '🗜️', json: '📋', js: '📋',
+    html: '🌐', css: '🎨', py: '🐍',
+  };
+  return icons[ext] || '📁';
 }
 
 // Jalankan init setelah DOM siap
