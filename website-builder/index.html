@@ -88,6 +88,16 @@
             data-target="section-history"
           >Riwayat</button>
         </li>
+        <li role="presentation">
+          <button
+            class="tab-btn"
+            id="tab-signature"
+            role="tab"
+            aria-selected="false"
+            aria-controls="section-signature"
+            data-target="section-signature"
+          >Tanda Tangan Digital</button>
+        </li>
       </ul>
     </div>
   </nav>
@@ -337,6 +347,171 @@
             </button>
           </div>
         </div>
+      </section>
+
+      <!-- ===== SEKSI: TANDA TANGAN DIGITAL ===== -->
+      <section
+        id="section-signature"
+        class="section hidden"
+        role="tabpanel"
+        aria-labelledby="tab-signature"
+      >
+        <h2 class="section-title">Tanda Tangan Digital</h2>
+        <p class="section-intro">
+          Tanda tangan digital menggunakan RSA secara <strong>terbalik</strong> dari enkripsi biasa:
+          dokumen di-<em>hash</em> lalu hash tersebut "ditandatangani" dengan <strong>kunci privat</strong>.
+          Verifikasi dilakukan dengan <strong>kunci publik</strong> pengirim.
+        </p>
+
+        <!-- Penjelasan konsep -->
+        <div class="card signature-concept">
+          <h3 class="card-title">Cara Kerja</h3>
+          <div class="concept-flow">
+            <div class="concept-step">
+              <div class="concept-icon">📄</div>
+              <div class="concept-label">Dokumen / File</div>
+            </div>
+            <div class="concept-arrow">→</div>
+            <div class="concept-step">
+              <div class="concept-icon">🔢</div>
+              <div class="concept-label">Hash SHA-256</div>
+            </div>
+            <div class="concept-arrow">→</div>
+            <div class="concept-step">
+              <div class="concept-icon">🔑</div>
+              <div class="concept-label">Tanda Tangan<br><small>(hash^d mod n)</small></div>
+            </div>
+          </div>
+          <div class="concept-flow" style="margin-top: 1rem;">
+            <div class="concept-step">
+              <div class="concept-icon">✅</div>
+              <div class="concept-label">Verifikasi<br><small>(tanda_tangan^e mod n = hash?)</small></div>
+            </div>
+            <div class="concept-arrow">←</div>
+            <div class="concept-step">
+              <div class="concept-icon">🔓</div>
+              <div class="concept-label">Kunci Publik</div>
+            </div>
+            <div class="concept-arrow">←</div>
+            <div class="concept-step">
+              <div class="concept-icon">📨</div>
+              <div class="concept-label">Tanda Tangan<br>Diterima</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Upload & Tanda Tangani -->
+        <div class="card">
+          <h3 class="card-title">1. Buat Tanda Tangan</h3>
+          <p class="section-intro" style="margin-bottom: 1rem;">
+            Pastikan kunci RSA sudah dibuat di tab <strong>Pembuatan Kunci</strong> terlebih dahulu.
+          </p>
+
+          <div class="form-group">
+            <label for="sig-file-input" class="form-label">Upload File (teks)</label>
+            <input
+              type="file"
+              id="sig-file-input"
+              class="form-input"
+              accept=".txt,.md,.csv,.json,.html,.js,.py"
+              aria-describedby="hint-sig-file"
+            />
+            <span id="hint-sig-file" class="form-hint">
+              Upload file teks. Isi file akan dibaca dan ditampilkan di bawah.
+            </span>
+          </div>
+
+          <!-- Isi file -->
+          <div id="sig-file-content-card" class="hidden">
+            <div class="form-group">
+              <label class="form-label">Isi File</label>
+              <textarea
+                id="sig-file-content"
+                class="form-textarea"
+                rows="6"
+                readonly
+                style="font-family: var(--font-mono); font-size: 0.8rem;"
+              ></textarea>
+            </div>
+          </div>
+
+          <button id="btn-sign" class="btn btn-primary" type="button">
+            Buat Tanda Tangan
+          </button>
+        </div>
+
+        <!-- Hasil tanda tangan -->
+        <div class="card hidden" id="sig-result-card">
+          <h3 class="card-title">Hasil Tanda Tangan</h3>
+          <div class="sig-result-grid">
+            <div class="form-group">
+              <label class="form-label">Hash SHA-256 (hex)</label>
+              <div id="sig-hash-display" class="result-area" style="font-size: 0.75rem; word-break: break-all;"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nilai Hash (desimal, dipotong untuk RSA edukasi)</label>
+              <div id="sig-hash-decimal" class="result-area"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Tanda Tangan Digital (S = hash^d mod n)</label>
+              <div id="sig-signature-display" class="result-area"></div>
+            </div>
+          </div>
+
+          <div class="step step-key" style="margin-top: 1rem;">
+            <div class="step-header">
+              <span class="step-number">Langkah</span>
+              <span class="step-title">Proses Penandatanganan</span>
+            </div>
+            <div id="sig-sign-steps"></div>
+          </div>
+        </div>
+
+        <!-- Verifikasi -->
+        <div class="card">
+          <h3 class="card-title">2. Verifikasi Tanda Tangan</h3>
+          <p class="form-hint" style="margin-bottom: 1rem;">
+            Upload file yang sama dan masukkan tanda tangan untuk memverifikasi keasliannya.
+          </p>
+
+          <div class="form-group">
+            <label for="verify-file-input" class="form-label">Upload File untuk Diverifikasi</label>
+            <input
+              type="file"
+              id="verify-file-input"
+              class="form-input"
+              accept=".txt,.md,.csv,.json,.html,.js,.py"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="verify-signature-input" class="form-label">Tanda Tangan Digital</label>
+            <input
+              type="number"
+              id="verify-signature-input"
+              class="form-input"
+              placeholder="Masukkan nilai tanda tangan (angka)"
+            />
+          </div>
+
+          <button id="btn-verify" class="btn btn-primary" type="button">
+            Verifikasi
+          </button>
+        </div>
+
+        <!-- Hasil verifikasi -->
+        <div class="card hidden" id="verify-result-card">
+          <h3 class="card-title">Hasil Verifikasi</h3>
+          <div id="verify-result-display"></div>
+          <div class="step step-key" style="margin-top: 1rem;">
+            <div class="step-header">
+              <span class="step-number">Langkah</span>
+              <span class="step-title">Proses Verifikasi</span>
+            </div>
+            <div id="sig-verify-steps"></div>
+          </div>
+        </div>
+
       </section>
 
     </div><!-- /.container -->

@@ -7,6 +7,7 @@ import { encrypt, getLastError as getEncryptLastError, ERR_KEY_TOO_SMALL } from 
 import { parseCiphertext, decrypt, getLastError as getDecryptLastError } from './decryptor.js?v=2';
 import { renderKeyGenerationSteps, renderEncryptionSteps, renderDecryptionSteps } from './step-visualizer.js?v=2';
 import { addEntry, clearAll, renderHistory } from './history-manager.js?v=3';
+import { signDocument, verifySignature } from './digital-signature.js';
 
 /**
  * State aplikasi global
@@ -318,6 +319,135 @@ function init() {
       }
 
       showNotification('Riwayat berhasil dihapus.', 'success');
+    });
+  }
+
+  // ─── TANDA TANGAN DIGITAL ────────────────────────────────────────────────
+
+  // 7. Upload file untuk ditandatangani
+  const sigFileInput = document.getElementById('sig-file-input');
+  if (sigFileInput) {
+    sigFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const content = ev.target.result;
+        const contentEl = document.getElementById('sig-file-content');
+        const contentCard = document.getElementById('sig-file-content-card');
+        if (contentEl) contentEl.value = content;
+        if (contentCard) contentCard.classList.remove('hidden');
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  // 8. Tombol "Buat Tanda Tangan"
+  const btnSign = document.getElementById('btn-sign');
+  if (btnSign) {
+    btnSign.addEventListener('click', async () => {
+      if (!AppState.currentKeyPair?.privateKey) {
+        showNotification('Harap buat atau masukkan kunci RSA terlebih dahulu di tab Pembuatan Kunci', 'error');
+        return;
+      }
+
+      const contentEl = document.getElementById('sig-file-content');
+      const fileContent = contentEl ? contentEl.value.trim() : '';
+      if (!fileContent) {
+        showNotification('Harap upload file terlebih dahulu', 'error');
+        return;
+      }
+
+      showProcessing();
+      try {
+        const result = await signDocument(fileContent, AppState.currentKeyPair.privateKey);
+
+        // Tampilkan hasil
+        const hashDisplay = document.getElementById('sig-hash-display');
+        const hashDecimal = document.getElementById('sig-hash-decimal');
+        const sigDisplay = document.getElementById('sig-signature-display');
+        const signSteps = document.getElementById('sig-sign-steps');
+        const resultCard = document.getElementById('sig-result-card');
+
+        if (hashDisplay) hashDisplay.textContent = result.hashHex;
+        if (hashDecimal) hashDecimal.textContent = `${result.hashDecimal} → mod n = ${result.hashMod}`;
+        if (sigDisplay) sigDisplay.textContent = result.signature;
+        if (signSteps) signSteps.innerHTML = result.steps.join('<hr style="border:none;border-top:1px solid #e5e7eb;margin:0.5rem 0">');
+        if (resultCard) resultCard.classList.remove('hidden');
+
+        // Isi otomatis field verifikasi
+        const verifySigInput = document.getElementById('verify-signature-input');
+        if (verifySigInput) verifySigInput.value = result.signature;
+
+        showNotification('Tanda tangan digital berhasil dibuat!', 'success');
+      } catch (err) {
+        showNotification(`Gagal membuat tanda tangan: ${err.message}`, 'error');
+      } finally {
+        hideProcessing();
+      }
+    });
+  }
+
+  // 9. Upload file untuk diverifikasi
+  const verifyFileInput = document.getElementById('verify-file-input');
+  let verifyFileContent = '';
+  if (verifyFileInput) {
+    verifyFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => { verifyFileContent = ev.target.result; };
+      reader.readAsText(file);
+    });
+  }
+
+  // 10. Tombol "Verifikasi"
+  const btnVerify = document.getElementById('btn-verify');
+  if (btnVerify) {
+    btnVerify.addEventListener('click', async () => {
+      if (!AppState.currentKeyPair?.publicKey) {
+        showNotification('Harap buat atau masukkan kunci RSA terlebih dahulu', 'error');
+        return;
+      }
+
+      if (!verifyFileContent) {
+        showNotification('Harap upload file yang akan diverifikasi', 'error');
+        return;
+      }
+
+      const sigInput = document.getElementById('verify-signature-input');
+      const signature = sigInput ? parseInt(sigInput.value, 10) : NaN;
+      if (isNaN(signature) || signature <= 0) {
+        showNotification('Harap masukkan nilai tanda tangan yang valid', 'error');
+        return;
+      }
+
+      showProcessing();
+      try {
+        const result = await verifySignature(verifyFileContent, signature, AppState.currentKeyPair.publicKey);
+
+        const resultDisplay = document.getElementById('verify-result-display');
+        const verifySteps = document.getElementById('sig-verify-steps');
+        const resultCard = document.getElementById('verify-result-card');
+
+        if (resultDisplay) {
+          resultDisplay.innerHTML = result.valid
+            ? `<div class="verify-valid">✅ <strong>Tanda Tangan VALID</strong> — File asli dan tidak diubah</div>`
+            : `<div class="verify-invalid">❌ <strong>Tanda Tangan TIDAK VALID</strong> — File mungkin telah diubah atau tanda tangan salah</div>`;
+        }
+        if (verifySteps) verifySteps.innerHTML = result.steps.join('<hr style="border:none;border-top:1px solid #e5e7eb;margin:0.5rem 0">');
+        if (resultCard) resultCard.classList.remove('hidden');
+
+        showNotification(
+          result.valid ? 'Verifikasi berhasil — tanda tangan valid!' : 'Verifikasi selesai — tanda tangan tidak valid',
+          result.valid ? 'success' : 'error'
+        );
+      } catch (err) {
+        showNotification(`Gagal memverifikasi: ${err.message}`, 'error');
+      } finally {
+        hideProcessing();
+      }
     });
   }
 }
